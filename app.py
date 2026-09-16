@@ -66,7 +66,6 @@ def show_login():
                 else:
                     st.error("Incorrect username or password.")
 
-        st.caption("Default account: **admin** / **admin123**")
         st.markdown("</div>", unsafe_allow_html=True)
 
 
