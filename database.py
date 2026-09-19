@@ -3,6 +3,8 @@ import mysql.connector
 from mysql.connector import Error
 from config import DB_CONFIG
 
+DEFAULT_STUDENT_PASSWORD = "1234"
+
 
 def get_connection(with_database=True):
     config = DB_CONFIG.copy()
@@ -43,6 +45,7 @@ def init_database():
             phone VARCHAR(20),
             email VARCHAR(100),
             address VARCHAR(255),
+            password VARCHAR(255),
             date_registered TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -83,6 +86,27 @@ def init_database():
     """)
 
     conn.commit()
+
+    cursor.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = %s AND table_name = 'students' AND column_name = 'password'
+    """, (DB_CONFIG["database"],))
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE students ADD COLUMN password VARCHAR(255)")
+        conn.commit()
+
+    cursor.execute("SELECT id FROM students WHERE password IS NULL")
+    students_missing_password = cursor.fetchall()
+    if students_missing_password:
+        default_hashed = bcrypt.hashpw(
+            DEFAULT_STUDENT_PASSWORD.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
+        for (student_id,) in students_missing_password:
+            cursor.execute(
+                "UPDATE students SET password = %s WHERE id = %s",
+                (default_hashed, student_id)
+            )
+        conn.commit()
 
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:

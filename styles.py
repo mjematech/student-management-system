@@ -145,6 +145,14 @@ section[data-testid="stSidebar"] * {
     font-size: 0.75rem;
     font-weight: 600;
 }
+.badge-student {
+    background: var(--success);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
 
 [data-testid="stDataFrame"] {
     border: 1px solid var(--card-border);

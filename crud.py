@@ -50,13 +50,26 @@ def add_student(registration_no, full_name, gender, dob, programme,
                  phone, email, address):
     conn = get_connection()
     cursor = conn.cursor()
+    default_password = hash_password("1234")
     cursor.execute("""
         INSERT INTO students
             (registration_no, full_name, gender, date_of_birth,
-             programme, phone, email, address)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+             programme, phone, email, address, password)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (registration_no, full_name, gender, dob, programme,
-          phone, email, address))
+          phone, email, address, default_password))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def change_student_password(student_id, new_plain_password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE students SET password = %s WHERE id = %s",
+        (hash_password(new_plain_password), student_id)
+    )
     conn.commit()
     cursor.close()
     conn.close()

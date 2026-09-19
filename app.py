@@ -54,17 +54,33 @@ def show_login():
         st.markdown('<div class="login-title">🎓 Student Management System</div>', unsafe_allow_html=True)
         st.markdown('<div class="login-subtitle">Sign in to continue</div>', unsafe_allow_html=True)
 
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login", use_container_width=True)
+        tab1, tab2 = st.tabs(["Staff Login", "Student Login"])
 
-            if submitted:
-                if auth.login(username, password):
-                    st.success("Login successful!")
-                    st.rerun()
-                else:
-                    st.error("Incorrect username or password.")
+        with tab1:
+            with st.form("staff_login_form"):
+                username = st.text_input("Username")
+                password = st.text_input("Password", type="password")
+                submitted = st.form_submit_button("Login", use_container_width=True)
+
+                if submitted:
+                    if auth.login(username, password):
+                        st.success("Login successful!")
+                        st.rerun()
+                    else:
+                        st.error("Incorrect username or password.")
+
+        with tab2:
+            with st.form("student_login_form"):
+                reg_no = st.text_input("Registration No")
+                student_password = st.text_input("Password", type="password", key="student_pw")
+                student_submitted = st.form_submit_button("Login", use_container_width=True)
+
+                if student_submitted:
+                    if auth.login_student(reg_no, student_password):
+                        st.success("Login successful!")
+                        st.rerun()
+                    else:
+                        st.error("Incorrect registration number or password.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -145,6 +161,10 @@ def show_students():
                     st.success("Student deleted.")
                     st.rerun()
 
+            if st.button("🔑 Reset Student Password to Default (1234)"):
+                crud.change_student_password(selected_id, "1234")
+                st.success("Password reset to 1234.")
+
             st.markdown("#### Academic Summary")
             average, total_marks = crud.get_average_for_student(selected_id)
             att_total, att_present, att_pct = crud.get_attendance_summary_for_student(selected_id)
@@ -205,7 +225,7 @@ def show_students():
                 else:
                     try:
                         crud.add_student(reg_no, full_name, gender, dob, programme, phone, email, address)
-                        st.success(f"Student '{full_name}' added.")
+                        st.success(f"Student '{full_name}' added. Default login password is 1234.")
                     except Exception as e:
                         st.error(f"Failed: {e}")
 
@@ -453,23 +473,143 @@ def show_users():
                         st.error(f"Failed: {e}")
 
 
+def show_student_home():
+    page_header("MY ACCOUNT", "My Results")
+
+    student_id = st.session_state["student_id"]
+    student = crud.get_student_by_id(student_id)
+
+    st.markdown("#### My Profile")
+    pcol1, pcol2 = st.columns(2)
+    with pcol1:
+        st.markdown(f"**Full Name:** {student['full_name']}")
+        st.markdown(f"**Registration No:** {student['registration_no']}")
+        st.markdown(f"**Programme:** {student['programme'] or '-'}")
+    with pcol2:
+        st.markdown(f"**Gender:** {student['gender']}")
+        st.markdown(f"**Phone:** {student['phone'] or '-'}")
+        st.markdown(f"**Email:** {student['email'] or '-'}")
+
+    st.markdown("#### Academic Summary")
+    average, total_marks = crud.get_average_for_student(student_id)
+    att_total, att_present, att_pct = crud.get_attendance_summary_for_student(student_id)
+
+    sc1, sc2, sc3 = st.columns(3)
+    with sc1:
+        st.markdown(metric_card("Overall Average",
+                                 f"{average}%" if average is not None else "N/A"),
+                    unsafe_allow_html=True)
+    with sc2:
+        st.markdown(metric_card("Assessments Recorded", total_marks), unsafe_allow_html=True)
+    with sc3:
+        st.markdown(metric_card("Attendance",
+                                 f"{att_pct}%" if att_pct is not None else "N/A"),
+                    unsafe_allow_html=True)
+
+    avg_by_course = crud.get_average_by_course_for_student(student_id)
+    if avg_by_course:
+        st.markdown("#### Average by Course")
+        acdf = pd.DataFrame(avg_by_course)
+        acdf["avg_score"] = acdf["avg_score"].astype(float).round(2)
+        acdf = acdf[["course_name", "avg_score", "total"]]
+        acdf.columns = ["Course", "Average Score", "Assessments"]
+        st.dataframe(acdf, use_container_width=True, hide_index=True)
+
+    marks = crud.get_marks_for_student(student_id)
+    st.markdown("#### My Marks")
+    if marks:
+        mdf = pd.DataFrame(marks)[["course_name", "semester", "assessment_type", "year", "score"]]
+        mdf.columns = ["Course", "Semester", "Assessment", "Year", "Score"]
+        st.dataframe(mdf, use_container_width=True, hide_index=True)
+    else:
+        st.caption("No marks recorded yet.")
+
+    pdf_bytes = reports.generate_student_report_pdf(
+        student, marks, average, total_marks, avg_by_course,
+        att_total, att_present, att_pct
+    )
+    st.download_button(
+        "📄 Download My Report (PDF)",
+        data=pdf_bytes,
+        file_name=f"{student['registration_no']}_report.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+    )
+
+
+def show_student_attendance_page():
+    page_header("MY ACCOUNT", "My Attendance")
+
+    student_id = st.session_state["student_id"]
+    total, present, pct = crud.get_attendance_summary_for_student(student_id)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(metric_card("Attendance Rate", f"{pct}%" if pct is not None else "N/A"),
+                    unsafe_allow_html=True)
+    with c2:
+        st.markdown(metric_card("Sessions Present", present), unsafe_allow_html=True)
+    with c3:
+        st.markdown(metric_card("Total Sessions", total), unsafe_allow_html=True)
+
+    records = crud.get_attendance_for_student(student_id)
+    if records:
+        df = pd.DataFrame(records)[["course_name", "attendance_date", "status"]]
+        df.columns = ["Course", "Date", "Status"]
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No attendance records yet.")
+
+
+def show_student_change_password():
+    page_header("MY ACCOUNT", "Change Password")
+
+    student_id = st.session_state["student_id"]
+    student = crud.get_student_by_id(student_id)
+
+    with st.form("student_change_password_form", clear_on_submit=True):
+        current_password = st.text_input("Current Password", type="password")
+        new_password = st.text_input("New Password", type="password")
+        confirm_password = st.text_input("Confirm New Password", type="password")
+        submitted = st.form_submit_button("🔑 Update Password", use_container_width=True)
+
+        if submitted:
+            if not auth.verify_password(current_password, student["password"]):
+                st.error("Current password is incorrect.")
+            elif not new_password:
+                st.error("New password cannot be empty.")
+            elif new_password != confirm_password:
+                st.error("New passwords do not match.")
+            else:
+                crud.change_student_password(student_id, new_password)
+                st.success("Password updated successfully.")
+
+
 def show_sidebar():
     with st.sidebar:
         st.markdown("## 🎓 SMS")
         st.markdown(f'**{st.session_state.get("full_name") or st.session_state.get("username")}**')
         role = st.session_state.get("role")
-        badge_class = "badge-admin" if role == "admin" else "badge-teacher"
+        badge_class = {
+            "admin": "badge-admin",
+            "teacher": "badge-teacher",
+            "student": "badge-student",
+        }.get(role, "badge-teacher")
         st.markdown(f'<span class="{badge_class}">{role.upper()}</span>', unsafe_allow_html=True)
         st.markdown("---")
 
-        options = ["Dashboard", "Students", "Courses", "Marks", "Attendance", "Reports"]
-        icons = {
-            "Dashboard": "📊", "Students": "🧑‍🎓", "Courses": "📚",
-            "Marks": "📝", "Attendance": "✅", "Reports": "📄",
-        }
-        if auth.is_admin():
-            options.append("Users")
-            icons["Users"] = "👥"
+        if role == "student":
+            options = ["My Results", "My Attendance", "Change Password"]
+            icons = {"My Results": "📊", "My Attendance": "✅", "Change Password": "🔑"}
+        else:
+            options = ["Dashboard", "Students", "Courses", "Marks", "Attendance", "Reports"]
+            icons = {
+                "Dashboard": "📊", "Students": "🧑‍🎓", "Courses": "📚",
+                "Marks": "📝", "Attendance": "✅", "Reports": "📄",
+            }
+            if auth.is_admin():
+                options.append("Users")
+                icons["Users"] = "👥"
 
         labels = [f"{icons[o]}  {o}" for o in options]
         choice = st.radio("Menu", labels, label_visibility="collapsed")
@@ -498,6 +638,15 @@ def main():
         return
 
     page = show_sidebar()
+
+    if auth.is_student():
+        if page == "My Results":
+            show_student_home()
+        elif page == "My Attendance":
+            show_student_attendance_page()
+        elif page == "Change Password":
+            show_student_change_password()
+        return
 
     if page == "Dashboard":
         show_dashboard()
