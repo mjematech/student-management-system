@@ -46,6 +46,23 @@ except Exception as e:
     DB_ERROR = str(e)
 
 
+def log(action):
+    crud.log_activity(
+        st.session_state.get("username", "unknown"),
+        st.session_state.get("role", "unknown"),
+        action,
+    )
+
+
+def with_grades(marks):
+    rows = []
+    for m in marks:
+        row = dict(m)
+        row["grade"] = crud.get_grade(m["score"])
+        rows.append(row)
+    return rows
+
+
 def show_login():
     st.markdown("<div style='height:2rem'></div>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.3, 1])
@@ -64,6 +81,7 @@ def show_login():
 
                 if submitted:
                     if auth.login(username, password):
+                        log("Logged in")
                         st.success("Login successful!")
                         st.rerun()
                     else:
@@ -77,6 +95,7 @@ def show_login():
 
                 if student_submitted:
                     if auth.login_student(reg_no, student_password):
+                        log("Logged in")
                         st.success("Login successful!")
                         st.rerun()
                     else:
@@ -96,6 +115,38 @@ def show_dashboard():
         st.markdown(metric_card("Total Courses", stats["courses"]), unsafe_allow_html=True)
     with c3:
         st.markdown(metric_card("Mark Records", stats["marks"]), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.subheader("Analytics")
+
+    ac1, ac2 = st.columns(2)
+    with ac1:
+        st.markdown("**Average Score by Course**")
+        avg_data = crud.get_average_score_by_course_all()
+        if avg_data:
+            adf = pd.DataFrame(avg_data)
+            adf["avg_score"] = adf["avg_score"].astype(float).round(2)
+            adf = adf.set_index("course_name")
+            st.bar_chart(adf["avg_score"])
+        else:
+            st.caption("No marks recorded yet.")
+
+    with ac2:
+        st.markdown("**Students by Programme**")
+        prog_data = crud.get_students_count_by_programme()
+        if prog_data:
+            pdf_ = pd.DataFrame(prog_data).set_index("programme")
+            st.bar_chart(pdf_["total"])
+        else:
+            st.caption("No programme data yet.")
+
+    st.markdown("**Attendance Overview (Present vs Absent)**")
+    att_data = crud.get_attendance_overview()
+    if att_data:
+        att_df = pd.DataFrame(att_data).set_index("status")
+        st.bar_chart(att_df["total"])
+    else:
+        st.caption("No attendance recorded yet.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Recently Registered Students")
@@ -153,16 +204,19 @@ def show_students():
                 if update_btn:
                     crud.update_student(selected_id, reg_no, full_name, gender, dob,
                                          programme, phone, email, address)
+                    log(f"Updated student {reg_no}")
                     st.success("Student updated.")
                     st.rerun()
 
                 if delete_btn:
                     crud.delete_student(selected_id)
+                    log(f"Deleted student {student['registration_no']}")
                     st.success("Student deleted.")
                     st.rerun()
 
             if st.button("🔑 Reset Student Password to Default (1234)"):
                 crud.change_student_password(selected_id, "1234")
+                log(f"Reset password for student {student['registration_no']}")
                 st.success("Password reset to 1234.")
 
             st.markdown("#### Academic Summary")
@@ -183,8 +237,10 @@ def show_students():
 
             marks = crud.get_marks_for_student(selected_id)
             if marks:
-                mdf = pd.DataFrame(marks)[["course_name", "semester", "assessment_type", "year", "score"]]
-                mdf.columns = ["Course", "Semester", "Assessment", "Year", "Score"]
+                mdf = pd.DataFrame(with_grades(marks))[
+                    ["course_name", "semester", "assessment_type", "year", "score", "grade"]
+                ]
+                mdf.columns = ["Course", "Semester", "Assessment", "Year", "Score", "Grade"]
                 st.dataframe(mdf, use_container_width=True, hide_index=True)
             else:
                 st.caption("No marks recorded for this student yet.")
@@ -225,6 +281,7 @@ def show_students():
                 else:
                     try:
                         crud.add_student(reg_no, full_name, gender, dob, programme, phone, email, address)
+                        log(f"Added student {reg_no}")
                         st.success(f"Student '{full_name}' added. Default login password is 1234.")
                     except Exception as e:
                         st.error(f"Failed: {e}")
@@ -246,7 +303,9 @@ def show_courses():
             labels = {c["id"]: f'{c["course_name"]} ({c["course_code"]})' for c in courses}
             selected_id = st.selectbox("Select course to delete", ids, format_func=lambda x: labels[x])
             if st.button("🗑️ Delete This Course"):
+                name = labels[selected_id]
                 crud.delete_course(selected_id)
+                log(f"Deleted course {name}")
                 st.success("Course deleted.")
                 st.rerun()
         else:
@@ -263,6 +322,7 @@ def show_courses():
                 else:
                     try:
                         crud.add_course(code, name)
+                        log(f"Added course {code} - {name}")
                         st.success(f"Course '{name}' added.")
                     except Exception as e:
                         st.error(f"Failed: {e}")
@@ -295,7 +355,8 @@ def show_marks():
         submitted = st.form_submit_button("➕ Record Mark", use_container_width=True)
         if submitted:
             crud.add_mark(student_id, course_id, semester, assessment_type, year, score)
-            st.success("Mark recorded.")
+            log(f"Recorded mark for {student_labels[student_id]} in {course_labels[course_id]}")
+            st.success(f"Mark recorded. Grade: {crud.get_grade(score)}")
 
     st.markdown("---")
     st.subheader("View a Student's Marks")
@@ -309,14 +370,17 @@ def show_marks():
 
     marks = crud.get_marks_for_student(selected_id)
     if marks:
-        df = pd.DataFrame(marks)[["id", "course_name", "semester", "assessment_type", "year", "score"]]
-        df.columns = ["ID", "Course", "Semester", "Assessment", "Year", "Score"]
+        df = pd.DataFrame(with_grades(marks))[
+            ["id", "course_name", "semester", "assessment_type", "year", "score", "grade"]
+        ]
+        df.columns = ["ID", "Course", "Semester", "Assessment", "Year", "Score", "Grade"]
         st.dataframe(df, use_container_width=True, hide_index=True)
 
         mark_ids = [m["id"] for m in marks]
         mark_id_to_delete = st.selectbox("Delete a mark record (select ID)", mark_ids, key="delete_mark_select")
         if st.button("🗑️ Delete This Record"):
             crud.delete_mark(mark_id_to_delete)
+            log(f"Deleted mark record #{mark_id_to_delete}")
             st.success("Record deleted.")
             st.rerun()
     else:
@@ -358,6 +422,7 @@ def show_attendance():
             if submitted:
                 for student_id, status in status_map.items():
                     crud.add_attendance(student_id, course_id, attendance_date, status)
+                log(f"Saved attendance for {course_labels[course_id]} on {attendance_date}")
                 st.success("Attendance saved for all students.")
 
     with tab2:
@@ -379,6 +444,7 @@ def show_attendance():
             record_to_delete = st.selectbox("Delete a record (select ID)", record_ids, key="delete_att_select")
             if st.button("🗑️ Delete This Record"):
                 crud.delete_attendance(record_to_delete)
+                log(f"Deleted attendance record #{record_to_delete}")
                 st.success("Record deleted.")
                 st.rerun()
         else:
@@ -452,6 +518,7 @@ def show_users():
                 if u["username"] != "admin":
                     if st.button("Delete", key=f'del_user_{u["id"]}'):
                         crud.delete_user(u["id"])
+                        log(f"Deleted user {u['username']}")
                         st.rerun()
             st.divider()
 
@@ -468,9 +535,22 @@ def show_users():
                 else:
                     try:
                         crud.add_user(username, password, full_name, role)
+                        log(f"Added user {username} ({role})")
                         st.success(f"User '{username}' added.")
                     except Exception as e:
                         st.error(f"Failed: {e}")
+
+
+def show_activity_log():
+    page_header("MANAGEMENT (ADMIN)", "Activity Log")
+
+    records = crud.get_recent_activity(100)
+    if records:
+        df = pd.DataFrame(records)[["created_at", "username", "role", "action"]]
+        df.columns = ["Time", "Username", "Role", "Action"]
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No activity recorded yet.")
 
 
 def show_student_home():
@@ -518,8 +598,10 @@ def show_student_home():
     marks = crud.get_marks_for_student(student_id)
     st.markdown("#### My Marks")
     if marks:
-        mdf = pd.DataFrame(marks)[["course_name", "semester", "assessment_type", "year", "score"]]
-        mdf.columns = ["Course", "Semester", "Assessment", "Year", "Score"]
+        mdf = pd.DataFrame(with_grades(marks))[
+            ["course_name", "semester", "assessment_type", "year", "score", "grade"]
+        ]
+        mdf.columns = ["Course", "Semester", "Assessment", "Year", "Score", "Grade"]
         st.dataframe(mdf, use_container_width=True, hide_index=True)
     else:
         st.caption("No marks recorded yet.")
@@ -582,6 +664,7 @@ def show_student_change_password():
                 st.error("New passwords do not match.")
             else:
                 crud.change_student_password(student_id, new_password)
+                log("Changed own password")
                 st.success("Password updated successfully.")
 
 
@@ -610,6 +693,8 @@ def show_sidebar():
             if auth.is_admin():
                 options.append("Users")
                 icons["Users"] = "👥"
+                options.append("Activity Log")
+                icons["Activity Log"] = "🕒"
 
         labels = [f"{icons[o]}  {o}" for o in options]
         choice = st.radio("Menu", labels, label_visibility="collapsed")
@@ -617,6 +702,7 @@ def show_sidebar():
 
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True):
+            log("Logged out")
             auth.logout()
             st.rerun()
 
@@ -664,6 +750,12 @@ def main():
         auth.require_login()
         if auth.is_admin():
             show_users()
+        else:
+            st.error("You don't have permission to access this page.")
+    elif page == "Activity Log":
+        auth.require_login()
+        if auth.is_admin():
+            show_activity_log()
         else:
             st.error("You don't have permission to access this page.")
 

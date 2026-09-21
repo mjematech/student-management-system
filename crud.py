@@ -313,3 +313,84 @@ def get_dashboard_stats():
         "courses": total_courses,
         "marks": total_marks,
     }
+
+
+def get_grade(score):
+    score = float(score)
+    if score >= 80:
+        return "A"
+    elif score >= 70:
+        return "B"
+    elif score >= 60:
+        return "C"
+    elif score >= 50:
+        return "D"
+    else:
+        return "F"
+
+
+def get_average_score_by_course_all():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT c.course_name, AVG(m.score) AS avg_score
+        FROM marks m
+        JOIN courses c ON m.course_id = c.id
+        GROUP BY c.course_name
+        ORDER BY c.course_name
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_students_count_by_programme():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT programme, COUNT(*) AS total
+        FROM students
+        WHERE programme IS NOT NULL
+        GROUP BY programme
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_attendance_overview():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT status, COUNT(*) AS total FROM attendance GROUP BY status")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def log_activity(username, role, action):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO activity_log (username, role, action) VALUES (%s, %s, %s)",
+        (username, role, action)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def get_recent_activity(limit=50):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT username, role, action, created_at FROM activity_log "
+        "ORDER BY created_at DESC LIMIT %s",
+        (limit,)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows

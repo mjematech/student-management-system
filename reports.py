@@ -13,6 +13,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
+from crud import get_grade
+
 NAVY = colors.HexColor("#1B2A4A")
 AMBER = colors.HexColor("#E8A33D")
 LIGHT_BG = colors.HexColor("#F2F0EA")
@@ -107,13 +109,13 @@ def generate_student_report_pdf(student, marks, average, total_marks,
 
     if marks:
         elements.append(Paragraph("Detailed Marks", section_style))
-        marks_header = ["Course", "Semester", "Assessment", "Year", "Score"]
+        marks_header = ["Course", "Semester", "Assessment", "Year", "Score", "Grade"]
         marks_rows = [[
             m["course_name"], m["semester"], m["assessment_type"],
-            str(m["year"]), f'{m["score"]}'
+            str(m["year"]), f'{m["score"]}', get_grade(m["score"])
         ] for m in marks]
         marks_table = Table([marks_header] + marks_rows,
-                             colWidths=[5 * cm, 3 * cm, 3.5 * cm, 2 * cm, 2 * cm])
+                             colWidths=[4.3 * cm, 2.7 * cm, 3.2 * cm, 1.8 * cm, 1.8 * cm, 1.7 * cm])
         marks_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), AMBER),
             ("TEXTCOLOR", (0, 0), (-1, 0), NAVY),
