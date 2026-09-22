@@ -67,7 +67,6 @@ def show_login():
     st.markdown("<div style='height:2rem'></div>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
-        st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
         lcol1, lcol2, lcol3 = st.columns([1, 1.2, 1])
         with lcol2:
             st.image("assets/sms_icon.png", use_container_width=True)
@@ -102,8 +101,6 @@ def show_login():
                         st.rerun()
                     else:
                         st.error("Incorrect registration number or password.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def show_dashboard():
