@@ -69,7 +69,7 @@ def show_login():
     with col2:
         lcol1, lcol2, lcol3 = st.columns([1, 1.2, 1])
         with lcol2:
-            st.image("assets/sms_icon.png", use_container_width=True)
+            st.image("assets/sms_icon.png", width=160)
         st.markdown('<div class="login-subtitle">Sign in to continue</div>', unsafe_allow_html=True)
 
         tab1, tab2 = st.tabs(["Staff Login", "Student Login"])
@@ -637,7 +637,7 @@ def show_student_change_password():
 
 def show_sidebar():
     with st.sidebar:
-        st.image("assets/sms_icon.png", use_container_width=True)
+        st.image("assets/sms_icon.png", width=120)
         st.markdown(f'**{st.session_state.get("full_name") or st.session_state.get("username")}**')
         role = st.session_state.get("role")
         badge_class = {
