@@ -68,7 +68,9 @@ def show_login():
     col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
         st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-        st.markdown('<div class="login-title">🎓 Student Management System</div>', unsafe_allow_html=True)
+        lcol1, lcol2, lcol3 = st.columns([1, 1.2, 1])
+        with lcol2:
+            st.image("assets/sms_icon.png", use_container_width=True)
         st.markdown('<div class="login-subtitle">Sign in to continue</div>', unsafe_allow_html=True)
 
         tab1, tab2 = st.tabs(["Staff Login", "Student Login"])
@@ -115,38 +117,6 @@ def show_dashboard():
         st.markdown(metric_card("Total Courses", stats["courses"]), unsafe_allow_html=True)
     with c3:
         st.markdown(metric_card("Mark Records", stats["marks"]), unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("Analytics")
-
-    ac1, ac2 = st.columns(2)
-    with ac1:
-        st.markdown("**Average Score by Course**")
-        avg_data = crud.get_average_score_by_course_all()
-        if avg_data:
-            adf = pd.DataFrame(avg_data)
-            adf["avg_score"] = adf["avg_score"].astype(float).round(2)
-            adf = adf.set_index("course_name")
-            st.bar_chart(adf["avg_score"])
-        else:
-            st.caption("No marks recorded yet.")
-
-    with ac2:
-        st.markdown("**Students by Programme**")
-        prog_data = crud.get_students_count_by_programme()
-        if prog_data:
-            pdf_ = pd.DataFrame(prog_data).set_index("programme")
-            st.bar_chart(pdf_["total"])
-        else:
-            st.caption("No programme data yet.")
-
-    st.markdown("**Attendance Overview (Present vs Absent)**")
-    att_data = crud.get_attendance_overview()
-    if att_data:
-        att_df = pd.DataFrame(att_data).set_index("status")
-        st.bar_chart(att_df["total"])
-    else:
-        st.caption("No attendance recorded yet.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Recently Registered Students")
@@ -670,7 +640,7 @@ def show_student_change_password():
 
 def show_sidebar():
     with st.sidebar:
-        st.markdown("## 🎓 SMS")
+        st.image("assets/sms_icon.png", use_container_width=True)
         st.markdown(f'**{st.session_state.get("full_name") or st.session_state.get("username")}**')
         role = st.session_state.get("role")
         badge_class = {
