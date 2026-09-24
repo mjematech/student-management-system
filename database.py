@@ -120,7 +120,7 @@ def init_database():
 
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        default_password = "1306"
+        default_password = "admin123"
         hashed = bcrypt.hashpw(default_password.encode("utf-8"), bcrypt.gensalt())
         cursor.execute("""
             INSERT INTO users (username, password, full_name, role)
